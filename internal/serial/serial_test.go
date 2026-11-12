@@ -262,6 +262,84 @@ func TestOwnershipCheck(t *testing.T) {
 		}
 	}
 }
+
+// Constructed from Dock Manager 1.1.7 ms/bs/ys and sized 0A65 decoder,
+// not a physical download capture.
+func TestSizedDownloadFrames(t *testing.T) {
+	handshake := make([]byte, 64)
+	handshake[0] = 3
+	handshake[1] = 0x65
+	info := make([]byte, 64)
+	info[0] = 2
+	info[1] = 0x65
+	data := append([]byte(nil), info...)
+	data[2] = 1
+	data[6] = 1
+	infoResponse := []byte{10, 0x65, 0, 0, 0, 0, 1, 0, 0, 0, 1}
+	dataResponse := []byte{10, 0x65, 0, 0, 0, 0, 1, 0xab}
+	stream := append([]byte{10, 56, 2, 11, 0x65, 0}, infoResponse[:4]...)
+	f := fake(stream, append(infoResponse[4:], dataResponse...))
+	p, _ := newPort(f, time.Second, nil)
+	got, err := p.RequestSized(context.Background(), handshake, [2]byte{11, 0x65}, 3)
+	if err != nil || !bytes.Equal(got, []byte{11, 0x65, 0}) {
+		t.Fatalf("handshake %x %v", got, err)
+	}
+	got, err = p.RequestSized(context.Background(), info, [2]byte{10, 0x65}, 11)
+	if err != nil || !bytes.Equal(got, infoResponse) {
+		t.Fatalf("info %x %v", got, err)
+	}
+	got, err = p.RequestSized(context.Background(), data, [2]byte{10, 0x65}, 8)
+	if err != nil || !bytes.Equal(got, dataResponse) {
+		t.Fatalf("data %x %v", got, err)
+	}
+	if !bytes.Equal(f.writes, append(append(handshake, info...), data...)) {
+		t.Fatal("download request changed")
+	}
+}
+func TestSizedDownloadRejectsUnverifiedRequestsBeforeWrite(t *testing.T) {
+	info := make([]byte, 64)
+	info[0] = 2
+	info[1] = 0x65
+	data := append([]byte(nil), info...)
+	data[2] = 1
+	handshake := make([]byte, 64)
+	handshake[0] = 3
+	handshake[1] = 0x65
+	invalidPadding := append([]byte(nil), info...)
+	invalidPadding[63] = 1
+	for _, tc := range []struct {
+		tx     []byte
+		prefix [2]byte
+		length int
+	}{
+		{nil, [2]byte{10, 0x65}, 11}, {info[:2], [2]byte{10, 0x65}, 11},
+		{info, [2]byte{10, 0x65}, 12}, {info, [2]byte{11, 0x65}, 3},
+		{handshake, [2]byte{11, 0x65}, 4}, {data, [2]byte{10, 0x65}, 7},
+		{data, [2]byte{10, 0x65}, 65}, {data, [2]byte{10, 22}, 8},
+		{invalidPadding, [2]byte{10, 0x65}, 11},
+	} {
+		f := fake()
+		p, _ := newPort(f, time.Second, nil)
+		if _, err := p.RequestSized(context.Background(), tc.tx, tc.prefix, tc.length); err == nil || len(f.writes) != 0 {
+			t.Fatalf("accepted tx=%x prefix=%x len=%d", tc.tx, tc.prefix, tc.length)
+		}
+	}
+}
+func TestSizedDownloadTimeoutAndDoesNotBroadenNormalRequest(t *testing.T) {
+	tx := make([]byte, 64)
+	tx[0] = 2
+	tx[1] = 0x65
+	f := fake([]byte{10, 0x65, 0})
+	p, _ := newPort(f, 10*time.Millisecond, nil)
+	if _, err := p.RequestSized(context.Background(), tx, [2]byte{10, 0x65}, 11); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal(err)
+	}
+	f = fake()
+	p, _ = newPort(f, time.Second, nil)
+	if _, err := p.Request(context.Background(), tx); err == nil || len(f.writes) != 0 {
+		t.Fatal("normal Request accepted variable-length command")
+	}
+}
 func TestDefaultTimeout(t *testing.T) {
 	f := fake()
 	p, _ := newPort(f, 10*time.Millisecond, nil)

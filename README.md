@@ -18,7 +18,8 @@
 | 查询当前壁纸槽位与 CRC | 已实现，当前输出原始响应 |
 | 上传并激活 JPEG 壁纸 | 已实现，实机验证 |
 | JSON 输出与协议调试日志 | 成功/错误结构化输出；调试日志独立stderr |
-| 完整 USB / DP / HDMI 状态 | 计划中 |
+| USB / DP / HDMI / 网口状态、显示器尺寸 | 已接入官方查询，本机只读验证 |
+| 导出当前壁纸、综合status | 已实现，本机只读验证 |
 | 健康提醒、专注记录及开关 | 已实现，macOS 实机回读验证 |
 | 屏幕休眠、语言、屏保开关 | 已实现，实机设置及恢复验证 |
 | 已有壁纸切换、单张删除、轮播 | 已实现，实机验证（仅删除专用测试图） |
@@ -42,7 +43,7 @@ ankerctl devices
 export PATH="$(go env GOPATH)/bin:$PATH"
 ```
 
-更新也使用同一条 `go install ...@latest` 命令。当前实验版本 `v0.5.0` 包含 PNG/JPEG 自动处理、番茄钟、壁纸轮播、上传 FIFO 和版本查询：
+更新也使用同一条 `go install ...@latest` 命令。当前实验版本 `v0.6.0` 包含 PNG/JPEG 自动处理、番茄钟、壁纸轮播、上传 FIFO 和版本查询：
 
 ```sh
 go install github.com/DROWNING2003/ankerctl/cmd/ankerctl@latest
@@ -118,6 +119,29 @@ MCU=v0.0.0.3 UI=ver0.1.0
 - 接近零的电压可能是测量底噪。
 - 不再用非零电压猜测连接状态；当前功率快照不输出这种连接标记。
 - 不可当作经过校准的功率计。
+
+### 端口与显示器（v0.6.0）
+
+```sh
+ankerctl ports
+ankerctl --json ports
+ankerctl displays
+ankerctl --json displays
+ankerctl status
+ankerctl --json --timeout 3s status
+```
+
+`ports` 读取0200端口状态及0239功率快照，包含USB速度标记、DP/HDMI分辨率刷新率、EDID产品信息、网口连接。`displays` 读取0200及0227，后者只包含物理尺寸，不是分辨率。厂商/产品索引未知时不强行匹配名称，尺寸为固件上报值。顺序读取非原子快照，`atomic_snapshot:false`。
+
+`status` 使用一个连接顺序读取多项信息，每项按`--timeout`限制；某项不支持或解析失败记录在该节`error`，其它已读结果保留，不补模拟值。连接因超时关闭后，剩余章节也会报连接错误，不会重发未知控制命令。所有章节均成功才有完整结果，使用脚本时检查每节`error`。
+
+### 导出当前壁纸（v0.6.0）
+
+```sh
+ankerctl --timeout 30s screen download ./current-wallpaper.jpg
+```
+
+读取设备当前保存的JPEG，不是截图。检查长度、分包序号、当前CRC、JPEG解码及320×240尺寸，并在读完后复核当前壁纸没有变化。输出文件必须不存在，不覆盖已有文件；空图、忙状态或不支持的固件明确报错。下载不切换壁纸、不修改设置。轮播/其它程序中途切图时可能校验失败，请重试，不把不完整图片当成功。
 
 ### 小屏与壁纸
 

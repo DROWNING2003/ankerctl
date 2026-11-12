@@ -85,7 +85,8 @@ func newRoot(out, stderr io.Writer) *cobra.Command {
 	root.PersistentFlags().DurationVar(&opt.Timeout, "timeout", 2*time.Second, "communication timeout")
 	root.PersistentFlags().BoolVar(&opt.Debug, "debug", false, "protocol debug")
 	root.AddCommand(&cobra.Command{Use: "devices", Args: cobra.NoArgs, RunE: func(*cobra.Command, []string) error { return commands.Devices(*opt) }})
-	root.AddCommand(&cobra.Command{Use: "info", Args: cobra.NoArgs, RunE: func(*cobra.Command, []string) error { return commands.Info(*opt) }}, unsupported("status", opt), &cobra.Command{Use: "ports", Args: cobra.NoArgs, RunE: func(*cobra.Command, []string) error { return commands.Ports(*opt) }}, unsupported("monitor", opt), unsupported("doctor", opt))
+	root.AddCommand(&cobra.Command{Use: "info", Args: cobra.NoArgs, RunE: func(*cobra.Command, []string) error { return commands.Info(*opt) }}, &cobra.Command{Use: "status", Short: "Read a combined device status snapshot", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error { return commands.Status(cmd.Context(), *opt) }}, &cobra.Command{Use: "ports", Args: cobra.NoArgs, RunE: func(*cobra.Command, []string) error { return commands.DetailedPorts(opt.Context, *opt) }}, unsupported("monitor", opt), unsupported("doctor", opt))
+	root.AddCommand(&cobra.Command{Use: "displays", Short: "Read DP/HDMI details and physical size", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error { return commands.Displays(cmd.Context(), *opt) }})
 	display := &cobra.Command{Use: "display"}
 	display.AddCommand(&cobra.Command{Use: "get", Args: cobra.NoArgs, RunE: func(*cobra.Command, []string) error { return commands.DisplayGet(*opt) }})
 	brightness := &cobra.Command{Use: "brightness <10-100>", Args: cobra.ExactArgs(1), RunE: func(_ *cobra.Command, args []string) error {
@@ -99,7 +100,9 @@ func newRoot(out, stderr io.Writer) *cobra.Command {
 	root.AddCommand(display)
 	screen := &cobra.Command{Use: "screen"}
 	screen.AddCommand(&cobra.Command{Use: "list", Short: "Show current wallpaper and slot occupancy (not a full image list)", Args: cobra.NoArgs, RunE: func(*cobra.Command, []string) error { return commands.ScreenGet(*opt) }}, &cobra.Command{Use: "upload <file>", Args: cobra.ExactArgs(1), RunE: func(_ *cobra.Command, args []string) error { return commands.UploadScreen(*opt, args[0]) }}, deleteScreenCommand(opt), controlCommand("on", "screen-on", cobra.NoArgs, opt), controlCommand("off", "screen-off", cobra.NoArgs, opt), controlCommand("select <crc>", "select", cobra.ExactArgs(1), opt))
-	screen.AddCommand(carouselCommand(opt))
+	screen.AddCommand(carouselCommand(opt), &cobra.Command{Use: "download <file>", Short: "Export current JPEG wallpaper without overwriting files", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		return commands.DownloadScreen(cmd.Context(), *opt, args[0])
+	}})
 	root.AddCommand(screen, timerCommand(opt), reminderCommand(opt), focusCommand(opt))
 	configureCommandGroups(root)
 	return root

@@ -202,17 +202,25 @@ func expectedResponse(tx []byte) (byte, error) {
 		return 0, fmt.Errorf("unsupported serial request command 0x%02x", tx[1])
 	}
 }
-func (p *Port) nextFrame() ([]byte, error) {
+func (p *Port) nextFrameSized(prefix [2]byte, length int) ([]byte, error) {
 	for len(p.pending) > 0 {
-		if p.pending[0] != 10 {
+		if p.pending[0] != 10 && p.pending[0] != 11 {
 			return nil, fmt.Errorf("unexpected serial frame prefix 0x%02x", p.pending[0])
 		}
 		if len(p.pending) < 2 {
 			return nil, nil
 		}
-		n, ok := responseLength(p.pending[1])
-		if !ok {
-			return nil, fmt.Errorf("unsupported asynchronous response 0A%02X", p.pending[1])
+		var n int
+		if p.pending[0] == prefix[0] && p.pending[1] == prefix[1] && length > 0 {
+			n = length
+		} else if p.pending[0] == 10 {
+			var ok bool
+			n, ok = responseLength(p.pending[1])
+			if !ok {
+				return nil, fmt.Errorf("unsupported asynchronous response 0A%02X", p.pending[1])
+			}
+		} else {
+			return nil, fmt.Errorf("unexpected serial frame 0B%02X", p.pending[1])
 		}
 		if len(p.pending) < n {
 			return nil, nil
@@ -223,11 +231,54 @@ func (p *Port) nextFrame() ([]byte, error) {
 	}
 	return nil, nil
 }
-func (p *Port) Request(ctx context.Context, tx []byte) (result []byte, err error) {
+func (p *Port) Request(ctx context.Context, tx []byte) ([]byte, error) {
 	want, err := expectedResponse(tx)
 	if err != nil {
 		return nil, err
 	}
+	length, _ := responseLength(want)
+	return p.requestFrame(ctx, tx, [2]byte{10, want}, length, want == 33)
+}
+
+// RequestSized is the optional current-wallpaper download capability. It is not
+// an arbitrary raw request API: only the observed 64-byte ms/bs/ys packet shapes
+// and their expected prefixes/lengths are allowed. Commands must parse status,
+// sequence, image-size bounds and JPEG validity themselves.
+func (p *Port) RequestSized(ctx context.Context, tx []byte, prefix [2]byte, length int) ([]byte, error) {
+	if err := validateSizedDownload(tx, prefix, length); err != nil {
+		return nil, err
+	}
+	return p.requestFrame(ctx, tx, prefix, length, false)
+}
+func validateSizedDownload(tx []byte, prefix [2]byte, length int) error {
+	if len(tx) != 64 || tx[1] != 0x65 {
+		return fmt.Errorf("unsupported sized request; expected verified 64-byte download packet")
+	}
+	zeroTail := func(start int) bool {
+		for _, b := range tx[start:] {
+			if b != 0 {
+				return false
+			}
+		}
+		return true
+	}
+	switch {
+	case tx[0] == 3:
+		if prefix == [2]byte{11, 0x65} && length == 3 && zeroTail(2) {
+			return nil
+		}
+	case tx[0] == 2 && tx[2] == 0:
+		if prefix == [2]byte{10, 0x65} && length == 11 && zeroTail(2) {
+			return nil
+		}
+	case tx[0] == 2 && tx[2] == 1:
+		if prefix == [2]byte{10, 0x65} && length >= 8 && length <= 64 && zeroTail(7) {
+			return nil
+		}
+	}
+	return fmt.Errorf("sized download prefix, length or packet fields do not match verified protocol")
+}
+func (p *Port) requestFrame(ctx context.Context, tx []byte, prefix [2]byte, length int, terminal bool) (result []byte, err error) {
 	err = p.operation(ctx, func(ctx context.Context) error {
 		if err := p.write(ctx, tx); err != nil {
 			return err
@@ -237,13 +288,13 @@ func (p *Port) Request(ctx context.Context, tx []byte) (result []byte, err error
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			frame, err := p.nextFrame()
+			frame, err := p.nextFrameSized(prefix, length)
 			if err != nil {
 				_ = p.Close() // Unknown framing cannot be resynchronized safely.
 				return err
 			}
 			if frame != nil {
-				if frame[1] == want && (want != 33 || frame[2] == 16 || frame[2] == 17) {
+				if frame[0] == prefix[0] && frame[1] == prefix[1] && (!terminal || frame[2] == 16 || frame[2] == 17) {
 					result = frame
 					return nil
 				}

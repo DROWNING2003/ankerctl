@@ -81,3 +81,86 @@ func TestPowerRejectsIncompleteFrames(t *testing.T) {
 		}
 	}
 }
+
+// Constructed fixtures from client offsets, not captured device frames.
+func detailFixture() []byte {
+	f := make([]byte, 64)
+	f[0] = 10
+	f[3] = 7
+	f[8] = 1
+	f[9] = 6
+	f[12] = 128
+	binary.BigEndian.PutUint16(f[4:], 0x1234)
+	binary.BigEndian.PutUint16(f[6:], 0x5678)
+	binary.BigEndian.PutUint16(f[13:], 2560)
+	binary.BigEndian.PutUint16(f[15:], 1440)
+	f[17] = 60
+	binary.BigEndian.PutUint16(f[18:], 1920)
+	binary.BigEndian.PutUint16(f[20:], 1080)
+	f[22] = 255
+	f[23] = 3
+	copy(f[24:], []byte{'D', 'E', 'L', 0x12, 0x34})
+	copy(f[29:], []byte{'A', 'C', 'R', 0xab, 0xcd})
+	copy(f[34:], "DELL TEST")
+	return f
+}
+func TestDetailedPortsFields(t *testing.T) {
+	got, err := ParseDetailedPortInfo(detailFixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.EthernetLinked || !got.PDLinked || !got.UFPLinked || got.HostVendorIndex != 0x1234 || got.HostProductIndex != 0x5678 {
+		t.Fatalf("%+v", got)
+	}
+	if got.USB.C1.Speed != "10 Gbps" || got.USB.C1.RawFlags != 6 || got.USB.A3.Speed != "" || !got.USB.A3.Connected {
+		t.Fatalf("%+v", got.USB)
+	}
+	if got.DP.Width != 2560 || got.DP.RefreshHz == nil || *got.DP.RefreshHz != 60 || got.DP.Name != "DELL TEST" || got.DP.ProductCode != "1234" || got.DP.Manufacturer != "DEL" {
+		t.Fatalf("%+v", got.DP)
+	}
+	if got.HDMI.RefreshHz != nil {
+		t.Fatal("invented refresh from invalid value")
+	}
+}
+func TestDisplaysRejectInvalidResolutionAndMetadata(t *testing.T) {
+	f := detailFixture()
+	binary.BigEndian.PutUint16(f[13:], 8000)
+	f[29] = 0
+	got, err := ParseDetailedPortInfo(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.DP.Connected || got.DP.Width != 0 {
+		t.Fatal("invalid resolution accepted")
+	}
+	if got.HDMI.Manufacturer != "" {
+		t.Fatal("invalid EDID manufacturer mapped")
+	}
+}
+func TestPhysicalSizes(t *testing.T) {
+	f := []byte{10, 39, 3, 1, 14, 69, 0, 240, 61}
+	got, err := ParsePhysicalSizes(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.DP.DiagonalInches == nil || *got.DP.DiagonalInches != 27 || got.HDMI.DiagonalInches == nil || *got.HDMI.DiagonalInches != 24 {
+		t.Fatalf("%+v", got)
+	}
+	f[2] = 0
+	got, _ = ParsePhysicalSizes(f)
+	if got.DP.DiagonalInches != nil || got.DP.RawCentimeters != 0 {
+		t.Fatal("ignored validity mask")
+	}
+}
+func TestDetailedMalformedFrames(t *testing.T) {
+	for _, f := range [][]byte{nil, {10, 0}, make([]byte, 64)} {
+		if _, err := ParseDetailedPortInfo(f); err == nil {
+			t.Fatal("accepted invalid port frame")
+		}
+	}
+	for _, f := range [][]byte{nil, {10, 39}, make([]byte, 9)} {
+		if _, err := ParsePhysicalSizes(f); err == nil {
+			t.Fatal("accepted invalid physical frame")
+		}
+	}
+}
