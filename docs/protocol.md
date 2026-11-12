@@ -53,6 +53,22 @@
 
 这些构造器只处理已分析的屏幕协议。CLI 已启用亮度设置和壁纸上传；其它命令是否开放以 README 为准。单元测试输入是人工构造 fixture，除明确标为实机观测的数据外，不代表捕获的设备帧。
 
+## 番茄钟协议（静态确认；未做真机启动验证）
+
+来源：Dock Manager 1.1.7 格式化 `background.js`，真实设备类的 `requestTomatoFrame` / `getTomatoDuration` / `setTomatoDuration` / `getTomatoStatus` / `startTomato` / `getTomatoStats`，行 102402–102499；响应格式来自 `FormatTomatoDurationData` / `FormatTomatoStatusData` / `FormatTomatoStatsData`，行 98592–98609。未采用行 104200 以后的 mock 实现。
+
+| 功能 | 请求 | 响应 |
+|---|---|---|
+| 时长读取 | `02 2A` | `0A 2A seconds:u32le`（6 字节） |
+| 时长设置 | `02 2A seconds:u32le` | 同上，CLI 检查回显与请求一致 |
+| 状态 | `02 2B` | `0A 2B state:u8 remaining:u32le completionSeq:u32le`（11 字节） |
+| 启动 | `02 2C` | `0A 2C accepted:u8`（3 字节）；客户端以非零表示接受 |
+| 统计 | `02 2D` | `0A 2D count:u32le seconds:u32le`（10 字节） |
+
+应用时长限制：整数 30..3600 秒，30 的整数倍。应用等待时间：时长/统计 2s、状态 1.8s、启动 3s；CLI 使用全局 `--timeout`。没有通用帧 CRC 的证据，不附加猜测的校验。停止方法在真实类中直接返回 unsupported，不发送帧。
+
+Go 解析器严格验证响应头和固定长度；当前共享传输层的单次读取限制仍存在，分片或异步混入将报错而不视为成功。测试帧为人工构造 fixture，不是硬件抓包。启动是否切换画面、状态码语义及版本兼容性仍未知。
+
 ## 分析制品来源
 
 Anker Dock Manager 1.1.7 macOS 安装镜像 SHA-256：`93c7fc07d222bbc67472e815424b1de9125cd8e550b5285f7513cb87679281fc`。

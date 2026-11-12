@@ -128,6 +128,29 @@ MCU=v0.0.0.3 UI=ver0.1.0
 
 **壁纸写入设备 Flash，请勿高频重复上传，也不要用于视频、动画或秒级仪表盘刷新。**
 
+## 番茄钟（实验性）
+
+```sh
+ankerctl timer duration        # 读取当前时长
+ankerctl timer duration 25m    # 设置 25 分钟并检查设备回显
+ankerctl timer status          # 原始状态码、剩余秒数、完成序号
+ankerctl timer start           # 启动；检查设备接受响应
+ankerctl timer stats           # 累计完成次数和秒数
+ankerctl --json timer status
+```
+
+设置时长支持整数秒或 `25m`、`90s` 等时长格式；必须为 30–3600 秒且为 30 秒的整数倍。设置时长本身不启动计时。
+
+`timer start` 的成功仅表示设备启动响应为接受，建议用 `timer status` 回读。若启动后超时或响应解析失败，设备可能已经开始计时，请先查状态，不要盲目重试启动。状态码保留设备原值，不猜测未知状态。`timer stop` 明确返回 Unsupported；分析的客户端没有固件停止命令。
+
+协议来自真实 CDC 实现（不是客户端 Mock）。本功能已通过构造 fixture 和 MockTransport 测试，尚未进行番茄钟真机启动验证。固件不支持或应答不完整时返回错误，不自动尝试其它命令。
+
+旧版 v0.1.0 不包含番茄钟；发布新版本标签前可用默认分支安装：
+
+```sh
+go install github.com/DROWNING2003/ankerctl/cmd/ankerctl@main
+```
+
 ## 全局参数
 
 | 参数 | 说明 |
