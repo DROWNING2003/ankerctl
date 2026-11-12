@@ -19,7 +19,10 @@
 | 上传并激活 JPEG 壁纸 | 已实现，实机验证 |
 | JSON 输出与协议调试日志 | 成功路径已实现；错误 JSON 尚待完善 |
 | 完整 USB / DP / HDMI 状态 | 计划中 |
-| 屏幕超时设置、素材删除、监控、诊断 | 尚未实现，返回 Unsupported |
+| 健康提醒、专注记录及开关 | 已实现，macOS 实机回读验证 |
+| 屏幕休眠、语言、屏保开关 | 已实现，实机设置及恢复验证 |
+| 已有壁纸切换、单张删除、轮播 | 已实现，实机验证（仅删除专用测试图） |
+| 监控、诊断 | 尚未实现，返回 Unsupported |
 
 ## 快速开始
 
@@ -39,7 +42,7 @@ ankerctl devices
 export PATH="$(go env GOPATH)/bin:$PATH"
 ```
 
-更新也使用同一条 `go install ...@latest` 命令。当前实验版本 `v0.3.0` 包含 PNG/JPEG 自动处理、番茄钟、壁纸轮播、上传 FIFO 和版本查询：
+更新也使用同一条 `go install ...@latest` 命令。当前实验版本 `v0.4.0` 包含 PNG/JPEG 自动处理、番茄钟、壁纸轮播、上传 FIFO 和版本查询：
 
 ```sh
 go install github.com/DROWNING2003/ankerctl/cmd/ankerctl@latest
@@ -137,7 +140,7 @@ ankerctl screen carousel on
 ankerctl screen carousel off
 ```
 
-开启会先开启自定义屏保总开关，再设置轮播。关闭轮播不自动关闭屏保总开关；不清空或同步图集。返回设备应答确认的结果，尚未真机验证这些新命令。
+开启会先开启自定义屏保总开关，再设置轮播。关闭轮播不自动关闭屏保总开关；不清空或同步图集。返回设备应答确认的结果，已在本机验证开启/状态/间隔/关闭并恢复原设置。
 
 ### 上传 FIFO（实验性）
 
@@ -151,6 +154,32 @@ ankerctl screen carousel off
 - 上传使用本地独占锁避免本工具两个上传同时执行；崩溃残留锁不会自动抢占，需确认没有上传进程后再人工处理报错中提示的锁文件。
 
 **壁纸写入设备 Flash，请勿高频重复上传，也不要用于视频、动画或秒级仪表盘刷新。**
+
+## 健康提醒与专注记录（v0.4.0）
+
+```sh
+ankerctl reminder duration        # 读取健康提醒间隔
+ankerctl reminder duration 30m    # 30..3600秒，30秒的整数倍
+ankerctl focus status             # 设备专注统计
+ankerctl focus on
+ankerctl focus off
+ankerctl --json focus status
+```
+
+专注记录不是录屏或应用使用日志；字段是设备计时、累计时长及最长连续时长。`is_focusing` 沿用官方按 elapsed>0 的推导，可能在 enabled=false 时仍为true，不表示电脑真的正在工作；设备判定算法未知。切换开关可能影响后续统计。健康提醒的展示/提示方式依固件，不承诺声音行为。
+
+## 屏幕设置与素材控制（v0.4.0）
+
+```sh
+ankerctl display timeout 5m       # 仅30s/1m/5m/10m/30m/3h；也接受整数秒
+ankerctl display language zh      # en/zh/ja/de
+ankerctl screen on
+ankerctl screen off
+ankerctl screen select 1253       # 16进制CRC，不是槽位编号
+ankerctl screen delete e957 --yes # 永久删除一张；缺少--yes不会访问设备
+```
+
+设置命令均回读检查；屏保开关通过0216回读。当前固件0217实测不是布尔开关应答，CLI不再用它验证。切换CRC不存在则失败；删除status=1返回未找到，不当成功。删除不会修改本地FIFO记录，记录失效时上传保护会拒绝自动淘汰；不要混用外部图集管理工具。删除不可撤销，不提供全部擦除。
 
 ## 番茄钟（实验性）
 

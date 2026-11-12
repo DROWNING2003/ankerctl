@@ -17,7 +17,7 @@
 - `readScreenSettings` 发送 `[02 16]`，等待 `0A 16`，最少 7 字节；响应字段为 `brightness=r[2]`、`lockTime=r[3]`、`language=r[4]`、`screensaverOn=(r[5]==1)`。（`background.formatted.js:102653-102701`）
 - `setBrightness` 发送 `[02 12 value]`，应用在发送前把值限制到 10..100。（`background.formatted.js:102703-102710`）
 - `setLockScreenTime` 发送 `[02 11 enum]`，应用界面枚举为 `30s=0, 1min=1, 5min=2, 10min=3, 30min=4, 3h=5`；写入后等待约 15ms，无确认响应。（`background.formatted.js:102712-102718`，`index.formatted.js:3147`）
-- 自定义屏保开关查询 `[02 17]`，响应 `0A 17 status`；设置 `[02 1F 00|01]`。（`background.formatted.js:102600-102649`、`102728-102745`）
+- 静态客户端的屏保开关查询为 `[02 17]`，期望 `0A 17 status`，但当前固件实测不是该布尔响应，CLI不使用此查询。设置 `[02 1F 00|01]` 后使用0216 byte5回读验证。（`background.formatted.js:102600-102649`、`102728-102745`；真机差异见[e2e-v0.4.0](e2e-v0.4.0.md)）
 - 上传前要求图片长度 `1..65520` 字节。CRC 为 CRC-16/IBM；分块大小 55。（`background.formatted.js:103040-103090`）
 - 上传头为 32 字节：前缀 `02 20 A1 01 FF A2 05 03`；图片长度 offset 8 大端；字段 `A4 03 02` 后写入 `55` 大端；`A5 05 03` 后写入分包数 offset 24；`A6 02` 后写入图片 CRC offset 30。（`background.formatted.js:103060-103090`）
 - 上传握手发送 `[02 20 ...]`，等待 `0A 20 status`；status 0 表示允许，status 1 表示 MCU 忙并重试。（`background.formatted.js:103091-103160`）
@@ -58,6 +58,10 @@
 新增 `screen carousel status/on/off/interval`，沿用前述 021B/021C/021D 和开启屏保 021F 协议；不清空素材。开启前 021F01，随后 021B01；off 只发送 021B00。MockTransport 验证请求和回显，未进行新功能真机写入测试。
 
 上传先读 021C 的 count/bitmap 并检查一致性，成功上传激活后通过 0218 回读 slot/CRC，写入串口路径哈希隔离的本地 FIFO 记录。满 8 槽时必须有完整8槽记录，按记录最早顺序处理，先激活并回读 slot/CRC 验证，再发送 021A 单张删除并等待 0A1A00。没有顺序记录或记录不完整则拒绝自动删除。旧版上传不追溯顺序，不按槽位猜年龄。CRC16 不能证明图片唯一身份或设备身份，端口复用/其它程序修改时需谨慎；跨进程锁仅覆盖本工具上传，不代替官方串口仲裁。先删除后上传不是原子事务，失败可能留下已删旧图。见 README 限制。
+
+## 健康提醒与专注记录
+
+来源真实客户端 background.formatted.js:102370–102400、102501–102535，FormatFocusRecordData:98542–98570。提醒读取022E，设置022E+u32le，响应0A2E+u32le。专注读取020A，开关020A+00/01，响应0A02固定42字节；enabled@2、elapsed@6、focusDuration@10、total@14、longest@18、records@22、cumulativeFocus@26、cumulativeLeisure@30、historicalLongest@34，32位字段little-endian。isFocusing仅沿用elapsed>0推断，不是实际用户行为观测。已完成本机设置回读与恢复，见[e2e记录](e2e-v0.4.0.md)。
 
 ## 番茄钟协议（静态确认；未做真机启动验证）
 

@@ -29,12 +29,12 @@ func main() {
 		}
 		return commands.Brightness(opt, v)
 	}}
-	display.AddCommand(b, unsupported("timeout"))
+	display.AddCommand(b, controlCommand("timeout <duration>", "timeout", cobra.ExactArgs(1)), controlCommand("language <en|zh|ja|de>", "language", cobra.ExactArgs(1)))
 	root.AddCommand(display)
 	screen := &cobra.Command{Use: "screen"}
-	screen.AddCommand(&cobra.Command{Use: "list", Args: cobra.NoArgs, RunE: func(*cobra.Command, []string) error { return commands.ScreenGet(opt) }}, &cobra.Command{Use: "upload <file>", Args: cobra.ExactArgs(1), RunE: func(_ *cobra.Command, args []string) error { return commands.UploadScreen(opt, args[0]) }}, unsupported("delete"))
+	screen.AddCommand(&cobra.Command{Use: "list", Args: cobra.NoArgs, RunE: func(*cobra.Command, []string) error { return commands.ScreenGet(opt) }}, &cobra.Command{Use: "upload <file>", Args: cobra.ExactArgs(1), RunE: func(_ *cobra.Command, args []string) error { return commands.UploadScreen(opt, args[0]) }}, deleteScreenCommand(), controlCommand("on", "screen-on", cobra.NoArgs), controlCommand("off", "screen-off", cobra.NoArgs), controlCommand("select <crc>", "select", cobra.ExactArgs(1)))
 	screen.AddCommand(carouselCommand())
-	root.AddCommand(screen, timerCommand())
+	root.AddCommand(screen, timerCommand(), reminderCommand(), focusCommand())
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
 	}
