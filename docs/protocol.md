@@ -53,6 +53,12 @@
 
 这些构造器只处理已分析的屏幕协议。CLI 已启用亮度设置和壁纸上传；其它命令是否开放以 README 为准。单元测试输入是人工构造 fixture，除明确标为实机观测的数据外，不代表捕获的设备帧。
 
+## 轮播和上传 FIFO（实验性）
+
+新增 `screen carousel status/on/off/interval`，沿用前述 021B/021C/021D 和开启屏保 021F 协议；不清空素材。开启前 021F01，随后 021B01；off 只发送 021B00。MockTransport 验证请求和回显，未进行新功能真机写入测试。
+
+上传先读 021C 的 count/bitmap 并检查一致性，成功上传激活后通过 0218 回读 slot/CRC，写入串口路径哈希隔离的本地 FIFO 记录。满 8 槽时必须有完整8槽记录，按记录最早顺序处理，先激活并回读 slot/CRC 验证，再发送 021A 单张删除并等待 0A1A00。没有顺序记录或记录不完整则拒绝自动删除。旧版上传不追溯顺序，不按槽位猜年龄。CRC16 不能证明图片唯一身份或设备身份，端口复用/其它程序修改时需谨慎；跨进程锁仅覆盖本工具上传，不代替官方串口仲裁。先删除后上传不是原子事务，失败可能留下已删旧图。见 README 限制。
+
 ## 番茄钟协议（静态确认；未做真机启动验证）
 
 来源：Dock Manager 1.1.7 格式化 `background.js`，真实设备类的 `requestTomatoFrame` / `getTomatoDuration` / `setTomatoDuration` / `getTomatoStatus` / `startTomato` / `getTomatoStats`，行 102402–102499；响应格式来自 `FormatTomatoDurationData` / `FormatTomatoStatusData` / `FormatTomatoStatsData`，行 98592–98609。未采用行 104200 以后的 mock 实现。
