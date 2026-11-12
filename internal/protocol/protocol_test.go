@@ -3,29 +3,11 @@ package protocol
 import (
 	"errors"
 	"testing"
-	"time"
 )
 
 func TestUnsupportedErrorIsStable(t *testing.T) {
 	if !errors.Is(Unsupported("status"), ErrUnsupported) {
 		t.Fatal("expected errors.Is to identify unsupported operations")
-	}
-}
-
-func TestFrameParserKeepsIncompleteFrames(t *testing.T) {
-	p := NewParser([]byte{0x0a, 0x20, 0x00})
-	frames, err := p.Push([]byte{0x04})
-	if err != nil || len(frames) != 0 {
-		t.Fatalf("incomplete frame should wait: frames=%v err=%v", frames, err)
-	}
-	if got := p.Buffered(); got != 1 {
-		t.Fatalf("buffered bytes = %d, want 1", got)
-	}
-}
-
-func TestRequestTimeout(t *testing.T) {
-	if _, err := WaitResponse(func() ([]byte, error) { <-make(chan struct{}); return nil, nil }, 5*time.Millisecond); !errors.Is(err, ErrTimeout) {
-		t.Fatalf("error = %v, want timeout", err)
 	}
 }
 

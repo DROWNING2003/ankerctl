@@ -15,6 +15,9 @@ import (
 
 // Control uses only the explicitly analyzed real CDC operations.
 func Control(ctx context.Context, o Options, operation, value string) error {
+	if operation == "delete" {
+		return deleteManagedScreen(ctx, o, value)
+	}
 	return runControl(ctx, o, operation, value, Open)
 }
 func ParseCRC(value string) (uint16, error) {
@@ -186,7 +189,7 @@ func runControl(ctx context.Context, o Options, op, value string, open func(Opti
 			return fmt.Errorf("invalid delete response; outcome unknown")
 		}
 		if frame[2] == 1 {
-			return fmt.Errorf("wallpaper CRC not found")
+			return ErrWallpaperNotFound
 		}
 		if frame[2] != 0 {
 			return fmt.Errorf("device rejected deletion: status=%d", frame[2])

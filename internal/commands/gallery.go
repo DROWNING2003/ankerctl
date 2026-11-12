@@ -1,10 +1,14 @@
 package commands
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"golang.org/x/sys/unix"
+	"math/bits"
 	"os"
 	"path/filepath"
 	"time"
@@ -47,13 +51,16 @@ func openGallery(o Options) (serial.Transport, *screen.Queue, string, func(), er
 	key := fmt.Sprintf("%x", sha256.Sum256([]byte(path)))
 	statePath := filepath.Join(dir, key+".json")
 	lockPath := statePath + ".lock"
-	// Exclusive creation, not a lease: stale locks fail closed after a crash.
-	lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	// OS lock releases on exit/crash; keep the inode to avoid unlink races.
+	lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, nil, "", nil, fmt.Errorf("gallery is locked (or stale lock at %s): %w", lockPath, err)
 	}
-	_ = lock.Close()
-	unlock := func() { _ = os.Remove(lockPath) }
+	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+		_ = lock.Close()
+		return nil, nil, "", nil, fmt.Errorf("gallery busy: %w", err)
+	}
+	unlock := func() { _ = unix.Flock(int(lock.Fd()), unix.LOCK_UN); _ = lock.Close() }
 	queue, err := screen.LoadQueue(statePath)
 	if err != nil {
 		unlock()
@@ -67,6 +74,51 @@ func openGallery(o Options) (serial.Transport, *screen.Queue, string, func(), er
 	}
 	return tr, queue, statePath, unlock, nil
 }
+
+var ErrWallpaperNotFound = errors.New("wallpaper CRC not found")
+
+func validateGallery(count, bitmap uint8) error {
+	if count > 8 || int(count) != bits.OnesCount8(bitmap) {
+		return fmt.Errorf("gallery count/bitmap inconsistent")
+	}
+	return nil
+}
+func deleteManagedScreen(ctx context.Context, o Options, value string) error {
+	crc, err := ParseCRC(value)
+	if err != nil {
+		return err
+	}
+	tr, q, path, unlock, err := openGallery(o)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	defer tr.Close()
+	if q.Pending != nil {
+		return fmt.Errorf("pending upload requires recovery before deletion; retry screen upload")
+	}
+	var output bytes.Buffer
+	deviceOptions := o
+	deviceOptions.Out = &output
+	err = runControl(ctx, deviceOptions, "delete", value, func(Options) (serial.Transport, error) { return noCloseTransport{tr}, nil })
+	if err != nil && !errors.Is(err, ErrWallpaperNotFound) {
+		return err
+	}
+	deviceErr := err
+	q.Remove(crc)
+	if err := q.Save(path); err != nil {
+		return fmt.Errorf("image deleted but local state save failed; next upload will revalidate: %w", err)
+	}
+	if deviceErr != nil {
+		return fmt.Errorf("wallpaper not found; stale local queue record removed: %w", deviceErr)
+	}
+	_, err = o.Out.Write(output.Bytes())
+	return err
+}
+
+type noCloseTransport struct{ serial.Transport }
+
+func (noCloseTransport) Close() error { return nil }
 func galleryState(ctx context.Context, tr serial.Transport) (uint8, uint8, error) {
 	f, err := tr.Request(ctx, []byte{2, 0x1c})
 	if err != nil {

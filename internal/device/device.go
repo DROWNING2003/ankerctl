@@ -15,6 +15,7 @@ const (
 
 type Port struct {
 	Path, VID, PID, Manufacturer, SerialNumber string
+	Product                                    string
 	IsA210C                                    bool
 }
 
@@ -23,10 +24,13 @@ type PublicPort struct {
 	VID          string `json:"vid"`
 	PID          string `json:"pid"`
 	Manufacturer string `json:"manufacturer"`
+	Product      string `json:"product"`
 	IsA210C      bool   `json:"isA210C"`
 }
 
-func (p Port) Public() PublicPort { return PublicPort{p.Path, p.VID, p.PID, p.Manufacturer, p.IsA210C} }
+func (p Port) Public() PublicPort {
+	return PublicPort{Path: p.Path, VID: p.VID, PID: p.PID, Manufacturer: p.Manufacturer, Product: p.Product, IsA210C: p.IsA210C}
+}
 
 func ListPorts() ([]Port, error) {
 	ports, err := enumerator.GetDetailedPortsList()
@@ -37,7 +41,7 @@ func ListPorts() ([]Port, error) {
 	for _, p := range ports {
 		vid := strings.ToLower(p.VID)
 		pid := strings.ToLower(p.PID)
-		out = append(out, Port{Path: p.Name, VID: vid, PID: pid, Manufacturer: p.Product, SerialNumber: p.SerialNumber, IsA210C: vid == AnkerVID && pid == AnkerPID})
+		out = append(out, Port{Path: p.Name, VID: vid, PID: pid, Product: p.Product, SerialNumber: p.SerialNumber, IsA210C: vid == AnkerVID && pid == AnkerPID})
 	}
 	return out, nil
 }
