@@ -39,7 +39,19 @@ ankerctl devices
 export PATH="$(go env GOPATH)/bin:$PATH"
 ```
 
-更新也使用同一条 `go install ...@latest` 命令。目前尚无版本标签，`@latest` 会解析默认分支的最新提交。
+更新也使用同一条 `go install ...@latest` 命令。已发布首个实验版本 `v0.1.0`，也可以固定安装：
+
+```sh
+go install github.com/DROWNING2003/ankerctl/cmd/ankerctl@v0.1.0
+```
+
+如果新版本尚未被当前 Go 代理收录，出现 `no matching versions for query "latest"`，可仅对此次安装绕过代理（不修改全局配置）：
+
+```sh
+GOPROXY=direct go install github.com/DROWNING2003/ankerctl/cmd/ankerctl@v0.1.0
+```
+
+此方式需要 Git 和访问 GitHub 的网络连接。`@latest` 通常选择最高稳定语义版本标签；安装未发布的默认分支代码请显式使用 `@main`。
 
 ### 从源码构建
 
