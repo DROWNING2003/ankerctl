@@ -29,7 +29,7 @@
 
 ```sh
 go install github.com/DROWNING2003/ankerctl/cmd/ankerctl@latest
-ankerctl --help
+ankerctl --version
 ankerctl devices
 ```
 
@@ -39,19 +39,19 @@ ankerctl devices
 export PATH="$(go env GOPATH)/bin:$PATH"
 ```
 
-更新也使用同一条 `go install ...@latest` 命令。已发布首个实验版本 `v0.1.0`，也可以固定安装：
+更新也使用同一条 `go install ...@latest` 命令。当前实验版本 `v0.2.0` 包含 PNG/JPEG 自动处理、番茄钟和版本查询：
 
 ```sh
-go install github.com/DROWNING2003/ankerctl/cmd/ankerctl@v0.1.0
+go install github.com/DROWNING2003/ankerctl/cmd/ankerctl@latest
 ```
 
 如果新版本尚未被当前 Go 代理收录，出现 `no matching versions for query "latest"`，可仅对此次安装绕过代理（不修改全局配置）：
 
 ```sh
-GOPROXY=direct go install github.com/DROWNING2003/ankerctl/cmd/ankerctl@v0.1.0
+GOPROXY=direct go install github.com/DROWNING2003/ankerctl/cmd/ankerctl@latest
 ```
 
-此方式需要 Git 和访问 GitHub 的网络连接。`@latest` 通常选择最高稳定语义版本标签；安装未发布的默认分支代码请显式使用 `@main`。
+此方式需要 Git 和访问 GitHub 的网络连接。`@latest` 选择最高稳定语义版本标签，更新后请运行 `ankerctl --version` 确认。若仍显示旧版本，使用 `type -a ankerctl` 检查 PATH 中是否存在旧副本。
 
 ### 从源码构建
 
@@ -124,7 +124,7 @@ MCU=v0.0.0.3 UI=ver0.1.0
 
 输入支持 PNG/JPEG，按真实内容识别，不依赖文件后缀。工具自动等比例缩放到 320×240 范围内，完整保留图片、不裁剪不拉伸，居中并补黑边；透明区域以黑色合成。自动编码为 320×240 JPEG，并逐步降低 JPEG 质量直到不超过 65,520 字节。原图不修改。
 
-输入安全限制：文件最多 32 MiB、图片最多 2000 万像素；超限在打开设备前拒绝。JPEG EXIF 方向暂不自动处理，请提供已摆正的图片。此自动处理功能在 main 分支，可用 `go install github.com/DROWNING2003/ankerctl/cmd/ankerctl@main` 更新。
+输入安全限制：文件最多 32 MiB、图片最多 2000 万像素；超限在打开设备前拒绝。JPEG EXIF 方向暂不自动处理，请提供已摆正的图片。此功能从 v0.2.0 起提供，安装后用 `ankerctl --version` 确认实际执行的版本。
 
 上传包含握手、分块传输、设备完成确认和激活。激活命令本身无应答，目前 CLI 不自动回读确认；可随后运行 `screen list` 检查。
 
@@ -147,11 +147,7 @@ ankerctl --json timer status
 
 协议来自真实 CDC 实现（不是客户端 Mock）。本功能已通过构造 fixture 和 MockTransport 测试，尚未进行番茄钟真机启动验证。固件不支持或应答不完整时返回错误，不自动尝试其它命令。
 
-旧版 v0.1.0 不包含番茄钟；发布新版本标签前可用默认分支安装：
-
-```sh
-go install github.com/DROWNING2003/ankerctl/cmd/ankerctl@main
-```
+番茄钟从 v0.2.0 起提供；旧版 v0.1.0 不包含此功能。
 
 ## 全局参数
 

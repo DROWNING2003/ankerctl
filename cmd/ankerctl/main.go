@@ -13,7 +13,7 @@ import (
 var opt = commands.Options{Timeout: 2 * time.Second, Out: os.Stdout, Err: os.Stderr}
 
 func main() {
-	root := &cobra.Command{Use: "ankerctl", Short: "Anker A210C command-line controller"}
+	root := &cobra.Command{Use: "ankerctl", Short: "Anker A210C command-line controller", Version: buildVersion()}
 	root.PersistentFlags().StringVar(&opt.Port, "port", "", "serial port")
 	root.PersistentFlags().BoolVar(&opt.JSON, "json", false, "JSON output")
 	root.PersistentFlags().DurationVar(&opt.Timeout, "timeout", 2*time.Second, "communication timeout")
