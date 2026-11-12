@@ -23,6 +23,26 @@
 
 ## 快速开始
 
+### 使用 go install（推荐）
+
+需要 Go 1.22 或更新版本：
+
+```sh
+go install github.com/DROWNING2003/ankerctl/cmd/ankerctl@latest
+ankerctl --help
+ankerctl devices
+```
+
+二进制安装到 `go env GOBIN` 指定的目录；未设置时为 `$(go env GOPATH)/bin`（通常是 `$HOME/go/bin`）。若提示找不到命令，将安装目录加入 PATH，例如：
+
+```sh
+export PATH="$(go env GOPATH)/bin:$PATH"
+```
+
+更新也使用同一条 `go install ...@latest` 命令。目前尚无版本标签，`@latest` 会解析默认分支的最新提交。
+
+### 从源码构建
+
 需要 Go 1.22 或更新版本，以及 Git。
 
 ```sh

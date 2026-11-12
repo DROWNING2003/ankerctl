@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"ankerctl/internal/commands"
+	"github.com/DROWNING2003/ankerctl/internal/commands"
 	"github.com/spf13/cobra"
 )
 

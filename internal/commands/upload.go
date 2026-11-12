@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"ankerctl/internal/protocol"
+	"github.com/DROWNING2003/ankerctl/internal/protocol"
 )
 
 func UploadScreen(o Options, path string) error {

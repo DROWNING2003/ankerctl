@@ -7,9 +7,9 @@ import (
 	"io"
 	"time"
 
-	"ankerctl/internal/device"
-	"ankerctl/internal/protocol"
-	"ankerctl/internal/serial"
+	"github.com/DROWNING2003/ankerctl/internal/device"
+	"github.com/DROWNING2003/ankerctl/internal/protocol"
+	"github.com/DROWNING2003/ankerctl/internal/serial"
 )
 
 type Options struct {

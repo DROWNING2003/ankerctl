@@ -1,4 +1,4 @@
-module ankerctl
+module github.com/DROWNING2003/ankerctl
 
 go 1.22
 
