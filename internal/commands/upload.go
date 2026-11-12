@@ -1,32 +1,33 @@
 package commands
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"image"
-	_ "image/jpeg"
+	"io"
 	"os"
 	"time"
 
 	"github.com/DROWNING2003/ankerctl/internal/protocol"
+	"github.com/DROWNING2003/ankerctl/internal/screen"
 )
 
 func UploadScreen(o Options, path string) error {
-	data, err := os.ReadFile(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return err
 	}
-	if len(data) < 2 || data[0] != 0xff || data[1] != 0xd8 {
-		return fmt.Errorf("screen upload requires a JPEG file")
+	input, readErr := io.ReadAll(io.LimitReader(file, screen.MaxInputBytes+1))
+	closeErr := file.Close()
+	if readErr != nil {
+		return readErr
 	}
-	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if closeErr != nil {
+		return closeErr
+	}
+	data, err := screen.Prepare(input)
 	if err != nil {
-		return fmt.Errorf("invalid JPEG: %w", err)
-	}
-	if cfg.Width != 320 || cfg.Height != 240 {
-		return fmt.Errorf("screen image must be 320x240, got %dx%d", cfg.Width, cfg.Height)
+		return err
 	}
 	header, crc, err := protocol.ScreenUploadHeader(data)
 	if err != nil {
